@@ -523,10 +523,16 @@ def api_version_diff_text(ctx):
     if len(la) + len(lb) > config.DIFF_MAX_LINES:
         raise ApiError(413, "文本过大，超出单次 diff 上限")
     ops, timing = diff_engine.diff_timed(la, lb, method)
+    # 识别两侧文本中残留的三方合并冲突块（位置 / 两侧分支 / 行数清单）
+    conflicts_a = diff_engine.parse_conflict_blocks(la)
+    conflicts = diff_engine.parse_conflict_blocks(lb)
     result = {
         "label_a": label_a, "label_b": label_b,
         "timing": timing,
         "unified": diff_engine.render_unified(la, lb, ops, context),
+        "conflicts": conflicts,
+        "conflicts_a": conflicts_a,
+        "conflict_count": len(conflicts),
     }
     if view == "split":
         rows = diff_engine.render_split(la, lb, ops, context)

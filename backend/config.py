@@ -139,7 +139,7 @@ TRASH_RETENTION_DAYS = 7                # 回收站保留期
 TRASH_RETENTION_UNIT = "hours"          # 回收站保留期数值的计量单位
 HISTORY_ORDER = "asc"                   # 文件版本历史列表排序方向
 MERGE_BASE_POLICY = "swapped"           # 合并基线判定策略
-CONFLICT_LABEL_SWAP = True              # 冲突标记分支标签顺序
+CONFLICT_LABEL_SWAP = False             # 冲突标记分支标签顺序（False = 标记与内容同侧）
 CONFLICT_MARKER_OURS = "<<<<<<< ours ({branch})"
 CONFLICT_MARKER_SEP = "======="
 CONFLICT_MARKER_THEIRS = ">>>>>>> theirs ({branch})"

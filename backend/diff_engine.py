@@ -728,3 +728,66 @@ def _render_side(base_lines, start, end, changes):
 def count_conflict_markers(lines):
     return sum(1 for ln in lines if ln.startswith("<<<<<<< ")
                or ln.startswith(">>>>>>> "))
+
+
+# ----------------------------------------------------------------------------
+# 冲突块识别（供差异对比页列出/高亮三方合并写入的冲突块）
+# ----------------------------------------------------------------------------
+
+def parse_conflict_blocks(lines):
+    """
+    扫描文本行，识别 <<<<<<< / ======= / >>>>>>> 三段式冲突块
+    （本系统 merge3 写出的 "ours (分支)" 格式与 git 风格标记均兼容）。
+    返回 [{index, start, sep, end,            # 0 基行号（三个 marker 行）
+           start_line, end_line,              # 1 基行号（整个冲突块跨度）
+           ours_label, theirs_label,          # marker 上写的完整标签
+           ours_branch, theirs_branch,        # 从 "ours (main)" 中提取的分支名
+           ours_lines, theirs_lines,          # 两侧内容行数
+           ours, theirs}]                     # 两侧内容行
+    只接受完整配对的冲突块；残缺/未闭合的标记直接跳过。
+    """
+    blocks = []
+    i, n = 0, len(lines)
+    while i < n:
+        if not lines[i].startswith("<<<<<<<"):
+            i += 1
+            continue
+        sep = end = None
+        j = i + 1
+        while j < n:
+            ln = lines[j]
+            if ln.startswith("<<<<<<<"):
+                break                    # 嵌套开标记：放弃外层，从内层重新扫描
+            if sep is None and ln.startswith("======="):
+                sep = j
+            elif ln.startswith(">>>>>>>"):
+                end = j
+                break
+            j += 1
+        if sep is None or end is None:
+            i += 1
+            continue
+        ours_label = lines[i][7:].strip()
+        theirs_label = lines[end][7:].strip()
+        blocks.append({
+            "index": len(blocks) + 1,
+            "start": i, "sep": sep, "end": end,
+            "start_line": i + 1, "end_line": end + 1,
+            "ours_label": ours_label,
+            "theirs_label": theirs_label,
+            "ours_branch": _conflict_branch(ours_label),
+            "theirs_branch": _conflict_branch(theirs_label),
+            "ours_lines": sep - i - 1,
+            "theirs_lines": end - sep - 1,
+            "ours": lines[i + 1:sep],
+            "theirs": lines[sep + 1:end],
+        })
+        i = end + 1
+    return blocks
+
+
+def _conflict_branch(label):
+    """从 "ours (main)" / "theirs (feature-ui)" 形式的标签里提取分支名。"""
+    if "(" in label and label.endswith(")"):
+        return label[label.rfind("(") + 1:-1].strip()
+    return label
