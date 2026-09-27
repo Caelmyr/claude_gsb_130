@@ -242,8 +242,9 @@ async function showLineDiff(path, a, b) {
       view: document.getElementById("opt-view").value,
     });
     renderPerf("ld-perf", r.timing, r.label_a, r.label_b);
-    body.innerHTML = document.getElementById("opt-view").value === "split"
-      ? renderSplit(r.split) : renderUnified(r.unified);
+    body.innerHTML = conflictPanel(r.conflicts, r.label_a, r.label_b) +
+      (document.getElementById("opt-view").value === "split"
+        ? renderSplit(r.split, r.conflicts) : renderUnified(r.unified, r.conflicts));
   } catch (e) {
     body.innerHTML = `<div class="empty small">${esc(e.message)}</div>`;
   }
@@ -270,32 +271,56 @@ function renderPerf(elId, t, la, lb) {
     <span class="muted">${esc(String(la))} ⇢ ${esc(String(lb))}</span>`;
 }
 
-function renderUnified(hunks) {
+function renderUnified(hunks, cf) {
   if (!hunks.length) return `<div class="empty small">内容完全一致</div>`;
   return `<div class="diff-box diff-unified">` + hunks.map(h => `
     <div class="drow hunk"><span class="ln"></span><span class="tx">${esc(h.header)}</span></div>
     ${h.rows.map(r => `
-      <div class="drow ${r.kind}">
+      <div class="drow ${r.kind}${inCf(cf, r.a_no, r.b_no) ? " cf" : ""}">
         <span class="ln">${r.a_no ?? ""}</span>
         <span class="ln">${r.b_no ?? ""}</span>
         <span class="tx">${r.kind === "add" ? "+ " : r.kind === "del" ? "- " : "  "}${esc(r.text)}</span>
       </div>`).join("")}`).join("") + `</div>`;
 }
 
-function renderSplit(rows) {
+function renderSplit(rows, cf) {
   if (!rows.length) return `<div class="empty small">内容完全一致</div>`;
   const segHtml = (segs, text) => segs
     ? segs.map(([s, ch]) => ch ? `<span class="seg-hl">${esc(s)}</span>` : esc(s)).join("")
     : esc(text ?? "");
   return `<div class="diff-box"><table class="diff-split">` + rows.map(r => {
     if (r.cls === "gap") return `<tr class="gap"><td colspan="4">${esc(r.text)}</td></tr>`;
-    return `<tr class="${r.cls}">
+    return `<tr class="${r.cls}${inCf(cf, r.l_no, r.r_no) ? " cf" : ""}">
       <td class="ln">${r.l_no ?? ""}</td>
       <td class="txt left">${segHtml(r.segs_l, r.l_text)}</td>
       <td class="ln">${r.r_no ?? ""}</td>
       <td class="txt right">${segHtml(r.segs_r, r.r_text)}</td>
     </tr>`;
   }).join("") + `</table></div>`;
+}
+
+// ------------------------------------------------------------------ 冲突块识别
+// 行号是否落在某一侧的冲突块范围内（start/end 为含标记行的闭区间，1 起）
+function inCf(cf, aNo, bNo) {
+  if (!cf) return false;
+  const hit = (blocks, no) => no != null &&
+    (blocks || []).some(b => no >= b.start && no <= b.end);
+  return hit(cf.a, aNo) || hit(cf.b, bNo);
+}
+
+// 冲突块清单：位置（行区间）、两侧分支标签、各行数
+function conflictPanel(cf, labelA, labelB) {
+  if (!cf || (!cf.a?.length && !cf.b?.length)) return "";
+  const side = (blocks, label) => !blocks?.length ? "" : `
+    <div class="step">⚠ <b>${esc(label)}</b> 检测到 ${blocks.length} 个冲突块（已高亮）：</div>
+    ${blocks.map(b => `
+      <div class="step">
+        <span class="badge warn plain">冲突 #${b.index}</span>
+        <span class="mono small">行 ${b.start}–${b.end}</span>
+        <span class="small">上侧 <b>${esc(b.ours_label || "ours")}</b>（${b.ours_lines} 行）</span>
+        <span class="small">下侧 <b>${esc(b.theirs_label || "theirs")}</b>（${b.theirs_lines} 行）</span>
+      </div>`).join("")}`;
+  return `<div class="trace-box cf-panel">${side(cf.a, labelA)}${side(cf.b, labelB)}</div>`;
 }
 
 // ------------------------------------------------------------------ 文本对比
@@ -316,8 +341,9 @@ document.getElementById("txt-run").onclick = async () => {
     document.getElementById("txt-perf").innerHTML +=
       `<span>网络往返 <b>${rt.toFixed(1)} ms</b></span>`;
     document.getElementById("txt-out").innerHTML =
-      document.getElementById("opt-view").value === "split"
-        ? renderSplit(r.split) : renderUnified(r.unified);
+      conflictPanel(r.conflicts, "文本 A", "文本 B") +
+      (document.getElementById("opt-view").value === "split"
+        ? renderSplit(r.split, r.conflicts) : renderUnified(r.unified, r.conflicts));
   } catch (e) { toast(e.message, "bad"); }
 };
 

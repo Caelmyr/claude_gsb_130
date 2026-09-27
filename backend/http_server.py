@@ -527,6 +527,12 @@ def api_version_diff_text(ctx):
         "label_a": label_a, "label_b": label_b,
         "timing": timing,
         "unified": diff_engine.render_unified(la, lb, ops, context),
+        # 冲突块识别：两侧文本各自扫描 <<<<<<< / ======= / >>>>>>> 块，
+        # 供差异对比页高亮并列出位置 / 两侧分支 / 行数清单
+        "conflicts": {
+            "a": diff_engine.find_conflict_blocks(la),
+            "b": diff_engine.find_conflict_blocks(lb),
+        },
     }
     if view == "split":
         rows = diff_engine.render_split(la, lb, ops, context)

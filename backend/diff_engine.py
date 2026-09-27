@@ -728,3 +728,60 @@ def _render_side(base_lines, start, end, changes):
 def count_conflict_markers(lines):
     return sum(1 for ln in lines if ln.startswith("<<<<<<< ")
                or ln.startswith(">>>>>>> "))
+
+
+def _conflict_label(marker_line, prefix):
+    """从冲突标记行解析分支标签：'<<<<<<< ours (main)' → 'main'；
+    不符合 'side (name)' 形式时返回标记后的原文（兼容 git 裸标记）。"""
+    rest = marker_line[len(prefix):].strip()
+    for side in ("ours", "theirs"):
+        head = side + " ("
+        if rest.startswith(head) and rest.endswith(")"):
+            return rest[len(head):-1]
+    return rest
+
+
+def find_conflict_blocks(lines):
+    """
+    扫描文本中的三方合并冲突块（<<<<<<< / ======= / >>>>>>>），
+    供差异对比页识别、高亮与列出清单。返回：[{
+        "index":        块序号（1 起）,
+        "start":        开标记 <<<<<<< 所在行号（1 起）,
+        "sep":          分隔线 ======= 所在行号（无则为 None）,
+        "end":          闭标记 >>>>>>> 所在行号,
+        "ours_label":   上侧（ours）分支标签,
+        "theirs_label": 下侧（theirs）分支标签,
+        "ours_lines":   上侧内容行数（不含标记行）,
+        "theirs_lines": 下侧内容行数（不含标记行）,
+    }]
+    未闭合的块（缺 >>>>>>>）不计入。
+    """
+    blocks = []
+    n = len(lines)
+    i = 0
+    while i < n:
+        if not lines[i].startswith("<<<<<<< "):
+            i += 1
+            continue
+        begin = i
+        sep = None
+        j = i + 1
+        while j < n and not lines[j].startswith(">>>>>>> "):
+            if sep is None and lines[j].startswith("======="):
+                sep = j
+            j += 1
+        if j >= n:
+            break                       # 未闭合残块：其后内容均视为块内
+        ours_end = sep if sep is not None else j
+        blocks.append({
+            "index": len(blocks) + 1,
+            "start": begin + 1,
+            "sep": (sep + 1) if sep is not None else None,
+            "end": j + 1,
+            "ours_label": _conflict_label(lines[begin], "<<<<<<< "),
+            "theirs_label": _conflict_label(lines[j], ">>>>>>> "),
+            "ours_lines": ours_end - begin - 1,
+            "theirs_lines": (j - ours_end - 1) if sep is not None else 0,
+        })
+        i = j + 1
+    return blocks

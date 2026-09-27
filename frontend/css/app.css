@@ -405,6 +405,12 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 .diff-split td.txt.left { border-right: 1px solid var(--border-soft); }
 .diff-split .seg-hl { background: rgba(240,165,56,.30); border-radius: 3px; }
 .diff-split tr.rep .seg-hl { background: rgba(240,165,56,.35); }
+/* 三方合并冲突块：识别 <<<<<<< / ======= / >>>>>>> 后高亮并给出清单 */
+.drow.cf { background: var(--warn-soft); }
+.drow.cf .tx { color: #f5c26b; }
+.diff-split tr.cf td { background: var(--warn-soft); }
+.cf-panel { margin-bottom: 10px; }
+.cf-panel .step b { color: var(--warn); }
 
 /* ---------------------------------------------------------------- 节点矩阵 */
 .matrix { border-collapse: collapse; font-family: var(--mono); font-size: 12px; }
